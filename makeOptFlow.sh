@@ -19,9 +19,9 @@ fi
 
 filePattern=$1
 folderName=$2
-opt_res=${3}
-startFrame=1
-stepSize=1
+opt_res=$3
+startFrame=${4:-1}
+stepSize=${5:-1}
 
 
 wait_for_file() {
