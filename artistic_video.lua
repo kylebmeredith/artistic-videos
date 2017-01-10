@@ -55,6 +55,7 @@ cmd:option('-save_init', false, 'Whether the initialization image should be save
 
 -- Other options
 cmd:option('-style_scale', 1.0)
+cmd:option('-original_colors', 0)
 cmd:option('-pooling', 'max', 'max|avg')
 cmd:option('-proto_file', 'models/VGG_ILSVRC_19_layers_deploy.prototxt')
 cmd:option('-model_file', 'models/VGG_ILSVRC_19_layers.caffemodel')
@@ -64,6 +65,7 @@ cmd:option('-seed', -1)
 cmd:option('-content_layers', 'relu4_2', 'layers for content')
 cmd:option('-style_layers', 'relu1_1,relu2_1,relu3_1,relu4_1,relu5_1', 'layers for style')
 cmd:option('-args', '', 'Arguments in a file, one argument per line')
+cmd:option('-timer', 600, 'How much time wait for Optical flow files to appear')
 
 -- Advanced options (changing them is usually not required)
 cmd:option('-combine_flowWeights_method', 'closestFirst',
@@ -74,6 +76,7 @@ function nn.SpatialConvolutionMM:accGradParameters()
 end
 
 local function main(params)
+  local timer = params.timer
   if params.gpu >= 0 then
     if params.backend ~= 'clnn' then
       require 'cutorch'
@@ -146,6 +149,7 @@ local function main(params)
       print("No more frames.")
       do return end
     end
+    local content_image_source = image.load(string.format(params.content_pattern, frameIdx), 3)
     local content_losses, temporal_losses = {}, {}
     local additional_layers = 0
     local num_iterations = frameIdx == params.start_number and tonumber(numIters_first) or tonumber(numIters_subseq)
@@ -176,6 +180,7 @@ local function main(params)
       for j=1, #J do
         local prevIndex = J[j]
         local flowFileName = getFormatedFlowFileName(params.flow_pattern, math.abs(prevIndex), math.abs(frameIdx))
+        waitForFile(flowFileName, timer)
         print(string.format('Reading flow file "%s".', flowFileName))
         local flow = flowFile.load(flowFileName)
         local fileName = build_OutFilename(params, math.abs(prevIndex - params.start_number + 1), -1)
@@ -208,6 +213,7 @@ local function main(params)
         -- Read all flow weights
         for j=1, #J do
           local weightsFileName = getFormatedFlowFileName(params.flowWeight_pattern, J[j], math.abs(frameIdx))
+          waitForFile(weightsFileName, timer)
           print(string.format('Reading flowWeights file "%s".', weightsFileName))
           table.insert(flowWeightsTabl, image.load(weightsFileName):float())
         end
@@ -236,6 +242,7 @@ local function main(params)
       img = content_image:clone():float()
     elseif init == 'prevWarped' and frameIdx > params.start_number then
       local flowFileName = getFormatedFlowFileName(params.flow_pattern, math.abs(frameIdx - 1), math.abs(frameIdx))
+      waitForFile(flowFileName, timer)
       print(string.format('Reading flow file "%s".', flowFileName))
       local flow = flowFile.load(flowFileName)
       local fileName = build_OutFilename(params, math.abs(frameIdx - params.start_number), -1)
@@ -255,11 +262,11 @@ local function main(params)
     if params.save_init then
       save_image(img,
         string.format('%sinit-' .. params.number_format .. '.png',
-          params.output_folder, math.abs(frameIdx - params.start_number + 1)))
+          params.output_folder, math.abs(frameIdx - params.start_number + 1)), content_image, params)
     end
 
     -- Run the optimization to stylize the image, save the result to disk
-    runOptimization(params, net, content_losses, style_losses, temporal_losses, img, frameIdx, -1, num_iterations)
+    runOptimization(params, net, content_losses, style_losses, temporal_losses, img, frameIdx, -1, num_iterations, content_image_source)
 
     if frameIdx == params.start_number then
       firstImg = img:clone():float()
@@ -327,6 +334,41 @@ function processFlowWeights(flowWeightsTabl, method, invert)
     end
   end
 end
+
+
+function waitForFile(fileName, timer)
+
+  local function fileExists(fileName)
+    local f=io.open(fileName,"r")
+    if f~=nil then io.close(f) return true else return false end
+  end
+
+  function sleep(timer) local sec = tonumber(os.clock() + timer); while (os.clock() < sec) do end end
+
+  if fileExists(fileName) then
+    return 0
+  end
+  
+  print(string.format('Waiting %s seconds for file: "%s"', timer, fileName))
+
+  local sleeptime = 2
+  local j = 0
+  while j < timer do
+    if fileExists(fileName) then
+      -- print('File found! Continue...')
+      return 0
+    else
+      sleep(sleeptime)
+    end
+    j = j + sleeptime
+    -- print(string.format('Waiting = "%s".', j))
+  end
+  print('File not found! Breaking.')
+  os.exit()
+  return 0
+end
+
+
 
 local tmpParams = cmd:parse(arg)
 local params = nil

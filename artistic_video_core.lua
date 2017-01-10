@@ -8,7 +8,7 @@ local lbfgs_mod = require 'lbfgs'
 ---
 
 function runOptimization(params, net, content_losses, style_losses, temporal_losses,
-    img, frameIdx, runIdx, max_iter)
+    img, frameIdx, runIdx, max_iter, content_image)
   local isMultiPass = (runIdx ~= -1)
 
   -- Run it through the network once to get the proper size for the gradient
@@ -77,7 +77,7 @@ function runOptimization(params, net, content_losses, style_losses, temporal_los
       else
         filename = build_OutFilename(params, math.abs(frameIdx - params.start_number + 1), should_save_end and -1 or t)
       end
-      save_image(img, filename)
+      save_image(img, filename, content_image, params)
     end
   end
 
@@ -491,9 +491,23 @@ function deprocess(img)
   return img
 end
 
-function save_image(img, fileName)
+-- Combine the Y channel of the generated image and the UV channels of the
+-- content image to perform color-independent style transfer.
+function original_colors(content, generated)
+  local generated_y = image.rgb2yuv(generated)[{{1, 1}}]
+  local content_uv = image.rgb2yuv(content)[{{2, 3}}]
+  return image.yuv2rgb(torch.cat(generated_y, content_uv, 1))
+end
+
+function save_image(img, fileName, content_image, params)
   local disp = deprocess(img:double())
   disp = image.minmax{tensor=disp, min=0, max=1}
+
+  -- Maybe perform postprocessing for color-independent style transfer
+  if params.original_colors == 1 then
+     disp = original_colors(content_image, disp)
+  end
+
   image.save(fileName, disp)
 end
 

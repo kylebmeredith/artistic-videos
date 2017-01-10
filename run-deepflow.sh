@@ -1,4 +1,4 @@
-if [ "$#" -ne 3 ]; then
+if [ "$#" -ne 4 ]; then
   echo "This is an auxiliary script for makeOptFlow.sh. No need to call this script directly."
   exit 1
 fi
@@ -7,4 +7,4 @@ if [ ! -f deepmatching-static ] && [ ! -f deepflow2-static ]; then
   exit 1
 fi
 
-./deepmatching-static $1 $2 -nt 0 | ./deepflow2-static $1 $2 $3 -match
+./deepmatching-static $1 $2 -nt 0 -downscale $4 | ./deepflow2-static $1 $2 $3 -match
