@@ -134,7 +134,7 @@ need_flow=${need_flow:-1}
 
 if [ "$need_flow" == "1" ]; then
   echo ""
-  read -p "Which resolution do you want for optical flow? Value is in 2^n \
+  read -p "Which resolution downscaling do you want for optical flow? Value is in 2^n \
   [1] $cr > " opt_res
   opt_res=${opt_res:-1}
   echo ""
