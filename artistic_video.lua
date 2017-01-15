@@ -336,6 +336,7 @@ function processFlowWeights(flowWeightsTabl, method, invert)
 end
 
 
+-- Function, that waits for required file
 function waitForFile(fileName, timer)
 
   local function fileExists(fileName)
@@ -343,7 +344,10 @@ function waitForFile(fileName, timer)
     if f~=nil then io.close(f) return true else return false end
   end
 
-  function sleep(timer) local sec = tonumber(os.clock() + timer); while (os.clock() < sec) do end end
+  function sleep(timer)
+    if  (os.execute("sleep " .. tonumber(timer))) == nil then return nil end
+    return 1
+  end
 
   if fileExists(fileName) then
     return 0
@@ -355,13 +359,12 @@ function waitForFile(fileName, timer)
   local j = 0
   while j < timer do
     if fileExists(fileName) then
-      -- print('File found! Continue...')
+       sleep(3)
       return 0
     else
-      sleep(sleeptime)
+      if sleep(sleeptime) == nil then break end
     end
     j = j + sleeptime
-    -- print(string.format('Waiting = "%s".', j))
   end
   print('File not found! Breaking.')
   os.exit()
