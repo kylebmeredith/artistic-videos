@@ -339,12 +339,12 @@ end
 -- Function, that waits for required file
 function waitForFile(fileName, timer)
 
+  require "lfs"
   local function fileExists(fileName)
-    local f=io.open(fileName,"r")
-    if f~=nil then io.close(f) return true else return false end
+    if lfs.attributes(fileName) then return true else return false end
   end
 
-  function sleep(timer)
+  local function sleep(timer)
     if  (os.execute("sleep " .. tonumber(timer))) == nil then return nil end
     return 1
   end
@@ -359,7 +359,7 @@ function waitForFile(fileName, timer)
   local j = 0
   while j < timer do
     if fileExists(fileName) then
-       sleep(3)
+      sleep(2)
       return 0
     else
       if sleep(sleeptime) == nil then break end
