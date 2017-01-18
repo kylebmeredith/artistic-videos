@@ -336,7 +336,6 @@ function processFlowWeights(flowWeightsTabl, method, invert)
 end
 
 
--- Function, that waits for required file
 function waitForFile(fileName, timer)
 
   require "lfs"
