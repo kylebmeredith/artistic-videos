@@ -61,6 +61,7 @@ cmd:option('-output_folder', '')
 cmd:option('-save_init', false, 'Whether the initialization image should be saved (for debugging purposes).')
 
 -- Other options
+cmd:option('-original_colors', 0)
 cmd:option('-style_scale', 1.0)
 cmd:option('-pooling', 'max', 'max|avg')
 cmd:option('-proto_file', 'models/VGG_ILSVRC_19_layers_deploy.prototxt')
@@ -71,6 +72,7 @@ cmd:option('-seed', -1)
 
 cmd:option('-content_layers', 'relu4_2', 'layers for content')
 cmd:option('-style_layers', 'relu1_1,relu2_1,relu3_1,relu4_1,relu5_1', 'layers for style')
+cmd:option('-timer', 600, 'How much time wait for Optical flow files to appear')
 
 cmd:option('-args', '', 'Arguments in a file, one argument per line')
 
@@ -79,6 +81,7 @@ function nn.SpatialConvolutionMM:accGradParameters()
 end
 
 local function main(params)
+  local timer = params.timer
   if params.gpu >= 0 then
     if params.backend ~= 'clnn' then
       require 'cutorch'
@@ -151,6 +154,7 @@ local function main(params)
   
     for frameIdx=start,endp, incr do
 
+      local content_image_source = image.load(string.format(params.content_pattern, frameIdx), 3)
       local content_image_caffe = getContentImage(frameIdx, params)
       local content_losses, prevPlusFlow_losses = {}, {}
       local additional_layers = 0
@@ -193,6 +197,7 @@ local function main(params)
             else
               weightsFileName = getFormatedFlowFileName(params.forwardFlow_weight_pattern, frameIdx+1, frameIdx)
             end
+            waitForFile(weightsFileName, timer)
             print(string.format('Reading flowWeights file "%s".', weightsFileName))
             flowWeights = image.load(weightsFileName):float()
             flowWeights = flowWeights:expand(3, flowWeights:size(2), flowWeights:size(3))
@@ -209,10 +214,10 @@ local function main(params)
 
       if run == 1 then
         -- For the first run, process the frames independently
-        if frameIdx == params.start_number or params.init == 'random' then
+        if params.init == 'prevWarped' or params.init == 'random' then
           img = randImg:clone():float()
-        elseif init == 'image' then
-          img = content_image:clone():float()
+        elseif params.init == 'image' then
+          img = content_image_caffe:clone():float()
         elseif params.init == 'prevWarped' then
           local prevImageWarpedWithPad = readPrevImageWarped(frameIdx, params, run - (1 - flag), true)
           img = preprocess(prevImageWarpedWithPad):float()
@@ -228,6 +233,7 @@ local function main(params)
         divisor:add(1)
         if frameIdx > params.start_number then
           local weightsFileName = getFormatedFlowFileName(params.backwardFlow_weight_pattern, frameIdx-1, frameIdx)
+          waitForFile(weightsFileName, timer)
           print(string.format('Reading flowWeights file "%s".', weightsFileName))
           local prevImageWeights = image.load(weightsFileName)
           prevImageWeights = prevImageWeights:expand(3, prevImageWeights:size(2), prevImageWeights:size(3))
@@ -237,6 +243,7 @@ local function main(params)
         end
         if frameIdx < end_image_idx then
           local weightsFileName = getFormatedFlowFileName(params.forwardFlow_weight_pattern, frameIdx+1, frameIdx)
+          waitForFile(weightsFileName, timer)
           print(string.format('Reading flowWeights file "%s".', weightsFileName))
           local nextImageWeights = image.load(weightsFileName)
           nextImageWeights = nextImageWeights:expand(3, nextImageWeights:size(2), nextImageWeights:size(3))
@@ -252,12 +259,12 @@ local function main(params)
 
       if params.save_init then
         save_image(img, params.output_folder .. string.format(
-          'init-' .. params.number_format .. '_%d.png', frameIdx, run))
+          'init-' .. params.number_format .. '_%d.png', frameIdx, run), content_image, params)
       end
 
       -- Run the optimization for some iterations, save the result to disk
       runOptimization(params, net, content_losses, style_losses, prevPlusFlow_losses,
-          img, frameIdx, run, num_iterations)
+          img, frameIdx, run, num_iterations, content_image_source)
 
       -- Remove this iteration's content and temporal layers
       for i=#losses_indices, 1, -1 do
@@ -279,6 +286,7 @@ end
 -- Disocclusions at the borders will be filled with the VGG mean pixel, if pad_mean_pixel is true.
 function readPrevImageWarped(idx, params, run, pad_mean_pixel)
   local flowFileName = getFormatedFlowFileName(params.backwardFlow_pattern, idx-1, idx)
+  waitForFile(flowFileName, params.timer)
   print(string.format('Reading backward flow file "%s".', flowFileName))
   local flow = flowFile.load(flowFileName)
   local prevImg = image.load(build_OutFilename(params, idx-1, run), 3)
@@ -306,6 +314,7 @@ end
 function readNextImageWarped(idx, params, run, pad_mean_pixel)
   local flowFileName = getFormatedFlowFileName(params.forwardFlow_pattern, idx+1, idx)
   print(string.format('Reading forward flow file "%s".', flowFileName))
+  waitForFile(flowFileName, timer)
   local flow = flowFile.load(flowFileName)
   local nextImg = image.load(build_OutFilename(params, idx+1, run), 3)
   if pad_mean_pixel then
@@ -324,6 +333,40 @@ function readNextImageWarped(idx, params, run, pad_mean_pixel)
     result = image.warp(nextImg, flow)
   end
   return result
+end
+
+function waitForFile(fileName, timer)
+
+  require "lfs"
+  local function fileExists(fileName)
+    if lfs.attributes(fileName) then return true else return false end
+  end
+
+  local function sleep(timer)
+    if  (os.execute("sleep " .. tonumber(timer))) == nil then return nil end
+    return 1
+  end
+
+  if fileExists(fileName) then
+    return 0
+  end
+  
+  print(string.format('Waiting %s seconds for file: "%s"', timer, fileName))
+
+  local sleeptime = 2
+  local j = 0
+  while j < timer do
+    if fileExists(fileName) then
+      sleep(2)
+      return 0
+    else
+      if sleep(sleeptime) == nil then break end
+    end
+    j = j + sleeptime
+  end
+  print('File not found! Breaking.')
+  os.exit()
+  return 0
 end
 
 local tmpParams = cmd:parse(arg)

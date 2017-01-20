@@ -17,16 +17,12 @@ function createOutputFile
   # Create video from output images.
   mkdir -p Out
 
-  if [ ! -f "./inProgress/${filename}/${filename}_[${num_iterations}]_$resolution/out-0001.png" ] || [ "$performStarted" -ne "1" ];
-  then
-    exit 0
-  fi
   echo ""
   echo ""
   echo "Creating video from video sequence"
   echo ""
   stylename=$(basename "${style_image%.*}")
-  $FFMPEG -i ./inProgress/${filename}/${filename}_[${num_iterations}]_$resolution/out-%04d.png -loglevel 'error' -framerate $framerate Out/${filename}-stylized-$stylename.$extension
+  $FFMPEG -i ./inProgress/${filename}/${filename}_[${num_iterations}]_$resolution/out-%04d_$num_passes.png -loglevel 'error' -framerate $framerate Out/${filename}-stylized-${stylename}_mp.$extension
   echo ""
 }
 
@@ -69,7 +65,7 @@ function makeDirs
 # Parsing last state
 function parseLastState
 {
-  laststate=./inProgress/$(basename "${1%.*}")_$(basename "${2%.*}")_laststate.txt
+  laststate=./inProgress/$(basename "${1%.*}")_$(basename "${2%.*}")_multipass_laststate.txt
 }
 
 # Default values
@@ -79,19 +75,20 @@ backend=cudnn
 gpu=0
 style_weight=1000
 resolution=original
-num_iterations=2000,1000
+num_iterations=66
 style_scale=1.0
 pooling=1
 init=1
 need_flow=1
 opt_res=1
-flow_relative_indices=1,15,40
+flow_relative_indices=1
 temporal_weight=1e3
-continue_with=1
+continue_with_pass=1
 weight_tv=0.0005
+num_passes=15
+original_colors=0
 timer=1200
 seed=1
-original_colors=0
 }
 
 # Get a carriage return into `cr`
@@ -245,6 +242,11 @@ read -p "How much iterations do you want? \
 if [[ ! -z "$readtmp" ]]; then num_iterations=$readtmp; unset readtmp; fi;
 
 echo ""
+read -p "How much passes do you want? \
+[$num_passes] $cr > " readtmp
+if [[ ! -z "$readtmp" ]]; then num_passes=$readtmp; unset readtmp; fi;
+
+echo ""
 read -p "What style size do you want? \
 [$style_scale] $cr > " readtmp 
 if [[ ! -z "$readtmp" ]]; then style_scale=$readtmp; unset readtmp; fi;
@@ -265,7 +267,7 @@ if [ "$pooling" == "0" ]; then
 fi
 
 echo ""
-read -p "What init do you want? random - 0, image - 1 \
+read -p "What init do you want? random - 0, image - 1, prevWarped - 2 \
 [$init] $cr > " readtmp 
 if [[ ! -z "$readtmp" ]]; then init=$readtmp; unset readtmp; fi;
 
@@ -275,6 +277,9 @@ if [ "$init" == "1" ]; then
 fi
 if [ "$init" == "0" ]; then
   init=random
+fi
+if [ "$init" == "2" ]; then
+  init=prevWarped
 fi
 
 
@@ -290,11 +295,6 @@ if [ "$need_flow" == "1" ]; then
   read -p "Which resolution downscaling do you want for optical flow? Value is in 2^n \
 [$opt_res] $cr > " readtmp 
   if [[ ! -z "$readtmp" ]]; then opt_res=$readtmp; unset readtmp; fi;
-
-  echo ""
-  read -p "Which indices for the flow do you want? For long-term flow enter comma-separated frame offsets, like this: 1,15,40. For short-term flow enter: 1. \
-[$flow_relative_indices] $cr > " readtmp 
-  if [[ ! -z "$readtmp" ]]; then flow_relative_indices=$readtmp; unset readtmp; fi;
 fi
 
 jumpto startComputingNormal
@@ -323,29 +323,56 @@ done
 lastfoundindex=`echo $latest | grep -o '[0-9:]*' | tail -1 | sed 's/^0*//'`
 lastfoundindex=${lastfoundindex:-0}
 
-# if last file is found
-if [ "$lastfoundindex" -ne 0 ]; then
-  echo ""
-  echo Found, that previous calculations stopped at frame $lastfoundindex
-  read -p "Do you want to continue from last found state? 1 - yes, 0 - no \
-[$continue_with] $cr > " readtmp 
-  if [[ ! -z "$readtmp" ]]; then continue_with=$readtmp; unset readtmp; fi;
-  if [ "$continue_with" == 0 ]; then
-    continue_with=1
-  else 
-    continue_with=$[$lastfoundindex+1]
+lastfoundindex2=`echo $latest | grep -o '[0-9:]*' | tail -2 | sed 's/^0*//' | head -1`
+lastfoundindex2=${lastfoundindex2:-0}
+
+
+# find last file number of input sequence
+dir=inProgress/${filename}
+unset -v latest
+for file in "$dir"/*.png; do
+  if [[ `echo $file | grep -o '[0-9:]*' | tail -1 | sed 's/^0*//'` -gt `echo $latest | grep -o '[0-9:]*' | tail -1 | sed 's/^0*//'` ]]; then latest=$file; fi;
+done
+lastfoundinputindex=`echo $latest | grep -o '[0-9:]*' | tail -1 | sed 's/^0*//'`
+lastfoundinputindex=${lastfoundinputindex:-0}
+
+
+# if last processing is found
+if [ "$lastfoundindex" -gt 1 ]; then
+  if [[ "$lastfoundindex" == "$num_passes"  &&  "$lastfoundinputindex" == "$lastfoundindex2" ]]; then 
+    echo ""
+    echo Found, that previous multi-pass calculations already finished.
+    read -p "Do you want to start process with the begining? 1 - yes, 0 - no \
+[1] $cr > " readtmp 
+    if [[ -z "$readtmp" ]]; then readtmp=1; fi;
+    if [ "$readtmp" == 1 ]; then
+      continue_with_pass=1
+    else 
+      exit 1
+    fi
+    unset readtmp
+  else   
+    echo ""
+    echo Found, that previous multi-pass calculations stopped at pass $lastfoundindex
+    read -p "Do you want to continue from last found state? 1 - yes, 0 - no \
+[$continue_with_pass] $cr > " readtmp 
+    if [[ ! -z "$readtmp" ]]; then continue_with_pass=$readtmp; unset readtmp; fi;
+    if [ "$continue_with_pass" == 0 ]; then
+      continue_with_pass=1
+    else 
+      continue_with_pass=$lastfoundindex
+    fi
   fi
 else
-  continue_with=1
+  continue_with_pass=1
 fi  
-
 
 
 if [ "$need_flow" == "1" ]; then
   echo ""
   echo "Computing optical flow in low-priority in background..."
   echo 
-  nice bash makeOptFlow.sh ./inProgress/${filename}/frame_%04d.png ./inProgress/${filename}/flow_$resolution 1 $flow_relative_indices $opt_res &
+  bash makeOptFlow.sh ./inProgress/${filename}/frame_%04d.png ./inProgress/${filename}/flow_$resolution 1 $flow_relative_indices $opt_res &
 fi
 
 echo ""
@@ -358,10 +385,12 @@ echo ""
 
 performStarted=1
 
-th artistic_video.lua \
+th artistic_video_multiPass.lua \
 -content_pattern inProgress/${filename}/frame_%04d.png \
--flow_pattern inProgress/${filename}/flow_${resolution}/backward_[%d]_{%d}.flo \
--flowWeight_pattern inProgress/${filename}/flow_${resolution}/reliable_[%d]_{%d}.pgm \
+-backwardFlow_pattern inProgress/${filename}/flow_${resolution}/backward_[%d]_{%d}.flo \
+-backwardFlow_weight_pattern inProgress/${filename}/flow_${resolution}/reliable_[%d]_{%d}.pgm \
+-forwardFlow_pattern inProgress/${filename}/flow_${resolution}/forward_[%d]_{%d}.flo \
+-forwardFlow_weight_pattern inProgress/${filename}/flow_${resolution}/reliable_[%d]_{%d}.pgm \
 -style_weight $style_weight \
 -output_folder ./inProgress/${filename}/${filename}_[${num_iterations}]_$resolution/ \
 -style_image $style_image \
@@ -372,13 +401,13 @@ th artistic_video.lua \
 -cudnn_autotune \
 -number_format %04d \
 -tv_weight $weight_tv \
--init $init,prevWarped \
+-init $init \
 -temporal_weight $temporal_weight \
 -original_colors $original_colors \
 -timer $timer \
 -seed $seed \
--continue_with $continue_with \
--flow_relative_indices $flow_relative_indices \
+-continue_with_pass $continue_with_pass \
+-num_passes $num_passes \
 -pooling $pooling
   
 createOutputFile
