@@ -159,10 +159,10 @@ fi
 
 if [ "$#" -le 1 ]; then
    echo "Usage:"
-   echo "./stylizeVideo.sh <path_to_video> <path_to_style_image>"
-   echo "./stylizeVideo.sh <path_to_video> <path_to_style_image> <path_to_parameters>.txt"
-   echo "./stylizeVideo.sh <path_to_video> <path_to_parameters>.txt"
-   echo "./stylizeVideo.sh <path_to_parameters>.txt"
+   echo "./stylizeVideo_multipass.sh <path_to_video> <path_to_style_image>"
+   echo "./stylizeVideo_multipass.sh <path_to_video> <path_to_style_image> <path_to_parameters>.txt"
+   echo "./stylizeVideo_multipass.sh <path_to_video> <path_to_parameters>.txt"
+   echo "./stylizeVideo_multipass.sh <path_to_parameters>.txt"
    exit 1
 fi
 
