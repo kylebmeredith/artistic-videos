@@ -347,17 +347,24 @@ function waitForFile(fileName, timer)
     return 1
   end
 
-  if fileExists(fileName) then
-    return 0
-  end
-  
-  print(string.format('Waiting %s seconds for file: "%s"', timer, fileName))
 
+  local function fileInUse(fileName, soft)
+    local check = os.execute("lsof -c /" .. soft .. "*/b | grep '" .. fileName .. "'")
+    if check == nil
+      then return false
+    else
+      return true
+    end
+  end
+
+  
   local sleeptime = 2
   local j = 0
   while j < timer do
-    if fileExists(fileName) then
-      sleep(2)
+    if (j == sleeptime) then
+      print(string.format('Waiting %s seconds for file: "%s"', timer, fileName))
+    end
+    if fileExists(fileName) and not fileInUse(fileName, 'deepmatching') and not fileInUse(fileName, 'deepflow') then
       return 0
     else
       if sleep(sleeptime) == nil then break end
