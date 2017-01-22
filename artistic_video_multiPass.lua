@@ -314,7 +314,7 @@ end
 function readNextImageWarped(idx, params, run, pad_mean_pixel)
   local flowFileName = getFormatedFlowFileName(params.forwardFlow_pattern, idx+1, idx)
   print(string.format('Reading forward flow file "%s".', flowFileName))
-  waitForFile(flowFileName, timer)
+  waitForFile(flowFileName, params.timer)
   local flow = flowFile.load(flowFileName)
   local nextImg = image.load(build_OutFilename(params, idx+1, run), 3)
   if pad_mean_pixel then
