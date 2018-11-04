@@ -28,8 +28,8 @@ IFS=',' read -r -a stepSize <<< "$stepSize"
 
 wait_for_file() {
    local filename=$1
-   while [ ! -f "$filename" ]; do 
-   sleep 1 
+   while [ ! -f "$filename" ]; do
+   sleep 1
    done
 }
 
@@ -58,6 +58,9 @@ while [ $loopWork = 1 ]; do
     file1=$(printf "$filePattern" "$i")
     file2=$(printf "$filePattern" "$j")
 
+    echo $file1
+    echo $file2
+
     if [ -a $file2 ] && [ -a $file1 ]; then
       if [ ! -f ${folderName}/forward_${j}_${i}.flo ]; then
         eval $flowCommandLine "$file2" "$file1" "${folderName}/forward_${j}_${i}.flo" ${opt_res} &
@@ -68,14 +71,16 @@ while [ $loopWork = 1 ]; do
       wait_for_file "${folderName}/forward_${j}_${i}.flo"
       ./consistencyChecker/consistencyChecker "${folderName}/backward_${i}_${j}.flo" "${folderName}/forward_${j}_${i}.flo" "${folderName}/reliable_${i}_${j}.pgm"
       ./consistencyChecker/consistencyChecker "${folderName}/forward_${j}_${i}.flo" "${folderName}/backward_${i}_${j}.flo" "${folderName}/reliable_${j}_${i}.pgm"
-    
+
     fi
 
     if [ ! -f $file1 ]; then
-      loopWork=0	
+      echo "nah"
+      loopWork=0
     fi
-    
+
   done
   i=$[$i + 1]
 
 done
+echo "done"

@@ -2,7 +2,7 @@ set -e
 
 trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT SIGHUP ERR
 
-# windows cmd-like GOTO function 
+# windows cmd-like GOTO function
 function jumpto
 {
     label=$1
@@ -13,7 +13,7 @@ function jumpto
 
 function createOutputFile
 {
-  
+
   # Create video from output images.
   mkdir -p Out
 
@@ -195,7 +195,7 @@ previousload=${previousload:-0}
   if [ "$previousload" == "1" ]; then
     source $laststate
   fi
-fi  
+fi
 
 
 parseArguments $1 $2
@@ -230,7 +230,7 @@ convertToSeq $1
 
 echo ""
   read -p "On which gpu do you want to compute? -1 for CPU. \
-[$gpu] $cr > "  readtmp 
+[$gpu] $cr > "  readtmp
 if [[ ! -z "$readtmp" ]]; then gpu=$readtmp; unset readtmp; fi;
 
 echo ""
@@ -246,12 +246,12 @@ if [[ ! -z "$readtmp" ]]; then num_iterations=$readtmp; unset readtmp; fi;
 
 echo ""
 read -p "What style size do you want? \
-[$style_scale] $cr > " readtmp 
+[$style_scale] $cr > " readtmp
 if [[ ! -z "$readtmp" ]]; then style_scale=$readtmp; unset readtmp; fi;
 
 echo ""
 read -p "What pooling do you want? avg - 0, max - 1 \
-[$pooling] $cr > " readtmp 
+[$pooling] $cr > " readtmp
 if [[ ! -z "$readtmp" ]]; then pooling=$readtmp; unset readtmp; fi;
 
 
@@ -266,7 +266,7 @@ fi
 
 echo ""
 read -p "What init do you want? random - 0, image - 1 \
-[$init] $cr > " readtmp 
+[$init] $cr > " readtmp
 if [[ ! -z "$readtmp" ]]; then init=$readtmp; unset readtmp; fi;
 
 
@@ -280,7 +280,7 @@ fi
 
 echo ""
 read -p "Compute optical flow? 1 - yes, 0 - no \
-[$need_flow] $cr > " readtmp 
+[$need_flow] $cr > " readtmp
 if [[ ! -z "$readtmp" ]]; then need_flow=$readtmp; unset readtmp; fi;
 
 makeDirs
@@ -288,12 +288,12 @@ makeDirs
 if [ "$need_flow" == "1" ]; then
   echo ""
   read -p "Which resolution downscaling do you want for optical flow? Value is in 2^n \
-[$opt_res] $cr > " readtmp 
+[$opt_res] $cr > " readtmp
   if [[ ! -z "$readtmp" ]]; then opt_res=$readtmp; unset readtmp; fi;
 
   echo ""
   read -p "Which indices for the flow do you want? For long-term flow enter comma-separated frame offsets, like this: 1,15,40. For short-term flow enter: 1. \
-[$flow_relative_indices] $cr > " readtmp 
+[$flow_relative_indices] $cr > " readtmp
   if [[ ! -z "$readtmp" ]]; then flow_relative_indices=$readtmp; unset readtmp; fi;
 fi
 
@@ -328,23 +328,23 @@ if [ "$lastfoundindex" -ne 0 ]; then
   echo ""
   echo Found, that previous calculations stopped at frame $lastfoundindex
   read -p "Do you want to continue from last found state? 1 - yes, 0 - no \
-[$continue_with] $cr > " readtmp 
+[$continue_with] $cr > " readtmp
   if [[ ! -z "$readtmp" ]]; then continue_with=$readtmp; unset readtmp; fi;
   if [ "$continue_with" == 0 ]; then
     continue_with=1
-  else 
+  else
     continue_with=$[$lastfoundindex+1]
   fi
 else
   continue_with=1
-fi  
+fi
 
 
 
 if [ "$need_flow" == "1" ]; then
   echo ""
   echo "Computing optical flow in low-priority in background..."
-  echo 
+  echo
   nice bash makeOptFlow.sh ./inProgress/${filename}/frame_%04d.png ./inProgress/${filename}/flow_$resolution 1 $flow_relative_indices $opt_res &
 fi
 
@@ -380,6 +380,6 @@ th artistic_video.lua \
 -continue_with $continue_with \
 -flow_relative_indices $flow_relative_indices \
 -pooling $pooling
-  
+
 createOutputFile
 #rm -f $laststate
