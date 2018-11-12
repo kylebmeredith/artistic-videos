@@ -2,8 +2,12 @@
 out*.png
 *.png
 *.jpg
+*.flo
+*.pgm
 *.prototxt*
 *.caffemodel
+*.mov
+inProgress/
 models/
 !models/download_models.sh
 deepflow2-static

@@ -75,7 +75,7 @@ while [ $loopWork = 1 ]; do
     fi
 
     if [ ! -f $file1 ]; then
-      echo "nah"
+      echo "not a file"
       loopWork=0
     fi
 
@@ -83,4 +83,3 @@ while [ $loopWork = 1 ]; do
   i=$[$i + 1]
 
 done
-echo "done"
