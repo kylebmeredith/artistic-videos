@@ -277,6 +277,10 @@ if [ "$init" == "0" ]; then
   init=random
 fi
 
+echo ""
+read -p "Maintain original colors? no - 0, yes - 1 \
+[$original_colors] $cr > " readtmp
+if [[ ! -z "$readtmp" ]]; then original_colors=$readtmp; unset readtmp; fi;
 
 echo ""
 read -p "Compute optical flow? 1 - yes, 0 - no \
